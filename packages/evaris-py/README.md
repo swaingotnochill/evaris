@@ -479,6 +479,21 @@ pytest tests/test_evaluate.py::TestEvaluateBasic::test_evaluate_single_test_case
 - [ ] Distributed evaluation
 - [ ] Cost profiling and optimization
 
+## Releasing
+
+```bash
+# 1. Verify package is ready
+python verify_package.py
+
+# 2. Update version in pyproject.toml
+# 3. Update CHANGELOG.md
+```
+**Automated (Recommended):**
+```bash
+./publish.sh test   # Test on TestPyPI first
+./publish.sh prod   # Publish to production PyPI
+```
+
 ## Contributing
 
 See [DEVELOPMENT.md](./docs/DEVELOPMENT.md) for development workflow and coding standards.
