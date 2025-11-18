@@ -1,0 +1,5 @@
+[
+  {"input": "What is 2+2?", "expected": "4"},
+  {"input": "What is the capital of France?", "expected": "Paris"},
+  {"input": "What is 10*5?", "expected": "50"}
+]

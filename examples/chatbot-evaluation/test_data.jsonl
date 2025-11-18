@@ -1,0 +1,10 @@
+{"input": "Which is greater 1.01 or 1.10?", "expected": "1.10", "metadata": {"category": "math", "difficulty": "easy"}}
+{"input": "What are the main causes of deforestation?", "expected": "The main causes of deforestation include agricultural expansion, logging, infrastructure development, and urbanization.", "metadata": {"category": "science", "difficulty": "easy"}}
+{"input": "Define the term 'artificial intelligence'.", "expected": "Artificial intelligence refers to the simulation of human intelligence in machines that are programmed to think and learn like humans, including tasks such as problem-solving, decision-making, and language understanding.", "metadata": {"category": "technology", "difficulty": "medium"}}
+{"input": "List the primary colors.", "expected": "The primary colors are red, blue, and yellow.", "metadata": {"category": "art", "difficulty": "easy"}}
+{"input": "What is the capital of France?", "expected": "Paris", "metadata": {"category": "geography", "difficulty": "easy"}}
+{"input": "Explain quantum computing in one sentence.", "expected": "Quantum computing uses quantum mechanical phenomena like superposition and entanglement to perform computations.", "metadata": {"category": "technology", "difficulty": "medium"}}
+{"input": "Who wrote Romeo and Juliet?", "expected": "William Shakespeare", "metadata": {"category": "literature", "difficulty": "easy"}}
+{"input": "What is 15 * 23?", "expected": "345", "metadata": {"category": "math", "difficulty": "easy"}}
+{"input": "Name the largest planet in our solar system.", "expected": "Jupiter", "metadata": {"category": "astronomy", "difficulty": "easy"}}
+{"input": "What is the chemical formula for water?", "expected": "H2O", "metadata": {"category": "chemistry", "difficulty": "easy"}}

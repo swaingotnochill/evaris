@@ -1,0 +1,153 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "evaris"
+version = "0.1.0"
+description = "AI Agent Evaluation and Observability Framework"
+authors = [
+    { name = "Roshan Nrusing Swain", email = "swaingotnochill@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+keywords = ["ai", "agents", "evaluation", "testing", "llm", "observability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[project.optional-dependencies]
+# LLM-as-Judge metric support
+llm = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "dashscope>=1.14.0",
+    "google-generativeai>=0.3.0",
+]
+
+# Semantic similarity metric support
+semantic = [
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+]
+
+# Tracing and observability support
+tracing = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+]
+
+# Progress bars and UI enhancements
+ui = [
+    "rich>=13.0.0",
+]
+
+# All optional metrics
+all = [
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "dashscope>=1.14.0",
+    "google-generativeai>=0.3.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "rich>=13.0.0",
+]
+
+# Development dependencies (includes all optional features for testing)
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "dashscope>=1.14.0",
+    "google-generativeai>=0.3.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "rich>=13.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/swaingotnochill/evaris"
+Documentation = "https://docs.evaris.dev"
+Repository = "https://github.com/swaingotnochill/evaris"
+Issues = "https://github.com/swaingotnochill/evaris/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["evaris"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=evaris",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "-v"
+]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore unused imports in tests that check for optional dependencies
+"tests/unit/test_tracing.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+# Skip type checking for heavy third-party libraries
+[[tool.mypy.overrides]]
+module = [
+    "torch",
+    "torch.*",
+    "transformers",
+    "transformers.*",
+    "sentence_transformers",
+    "sentence_transformers.*",
+    "opentelemetry",
+    "opentelemetry.*",
+    "rich",
+    "rich.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true

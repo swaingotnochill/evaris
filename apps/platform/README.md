@@ -1,4 +1,5 @@
-Welcome to your new TanStack app! 
+NOTE: This is just an template initialized from Tanstack start.
+Development work on this has yet to start.
 
 # Getting Started
 
