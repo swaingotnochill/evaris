@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,14 +81,58 @@ class TestCase(BaseModel):
         )
 
 
+class ReasoningStep(BaseModel):
+    """A single step in the reasoning trace for metric evaluation.
+
+    This model captures intermediate values and logic during metric evaluation,
+    providing transparency into how scores are calculated.
+
+    Example:
+        >>> step = ReasoningStep(
+        ...     step_number=1,
+        ...     operation="text_normalization",
+        ...     description="Normalizing text before comparison",
+        ...     inputs={"text": "Paris"},
+        ...     outputs={"normalized": "paris"}
+        ... )
+    """
+
+    step_number: int = Field(..., description="Sequential step number (1-indexed)")
+    operation: str = Field(..., description="Type of operation performed")
+    description: str = Field(..., description="Human-readable description of this step")
+    inputs: dict[str, Any] = Field(..., description="Input values for this step")
+    outputs: dict[str, Any] = Field(..., description="Output values from this step")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional step-specific metadata"
+    )
+
+
 class MetricResult(BaseModel):
-    """Result from a single metric evaluation."""
+    """Result from a single metric evaluation.
+
+    Includes optional reasoning fields for transparency into metric calculation.
+    """
 
     name: str = Field(..., description="Metric name")
     score: float = Field(..., ge=0.0, le=1.0, description="Score between 0 and 1")
     passed: bool = Field(..., description="Whether the test passed")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional metric-specific data"
+    )
+
+    # Reasoning fields (optional, for transparency)
+    reasoning: Optional[str] = Field(
+        default=None, description="Human-readable reasoning summary explaining the score"
+    )
+    reasoning_steps: Optional[list[ReasoningStep]] = Field(
+        default=None, description="Structured trace of reasoning steps taken during evaluation"
+    )
+    reasoning_type: Optional[Literal["logic", "llm", "hybrid"]] = Field(
+        default=None,
+        description=(
+            "Type of reasoning used: 'logic' for rule-based, "
+            "'llm' for LLM-based, 'hybrid' for both"
+        ),
     )
 
 

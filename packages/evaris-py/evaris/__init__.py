@@ -26,7 +26,15 @@ from evaris.oracle import OracleValidationConfig, OracleValidator
 
 # Statistics and analysis
 from evaris.statistics import StatisticalAnalyzer, StatisticalConfig
-from evaris.types import BaseMetric, EvalResult, Golden, MetricResult, TestCase, TestResult
+from evaris.types import (
+    BaseMetric,
+    EvalResult,
+    Golden,
+    MetricResult,
+    ReasoningStep,
+    TestCase,
+    TestResult,
+)
 
 # Validation
 from evaris.validation import TestCaseValidator, ValidationConfig
@@ -48,6 +56,7 @@ __all__ = [
     "MetricResult",
     "TestResult",
     "BaseMetric",
+    "ReasoningStep",
     # Built-in Metrics
     "ExactMatchMetric",
     # Statistics

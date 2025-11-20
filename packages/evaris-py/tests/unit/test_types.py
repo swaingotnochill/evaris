@@ -5,7 +5,15 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from evaris.types import BaseMetric, EvalResult, Golden, MetricResult, TestCase, TestResult
+from evaris.types import (
+    BaseMetric,
+    EvalResult,
+    Golden,
+    MetricResult,
+    ReasoningStep,
+    TestCase,
+    TestResult,
+)
 
 
 class TestTestCase:
@@ -83,6 +91,235 @@ class TestMetricResult:
         )
         assert mr_with_meta.metadata is not None
         assert mr_with_meta.metadata["reasoning"] == "Good match"
+
+
+class TestReasoningStep:
+    """Tests for ReasoningStep model (new for reasoning framework)."""
+
+    def test_create_valid_reasoning_step(self) -> None:
+        """Test creating ReasoningStep with all required fields."""
+        step = ReasoningStep(
+            step_number=1,
+            operation="text_normalization",
+            description="Normalizing input text for comparison",
+            inputs={"expected": "Paris", "actual": "paris"},
+            outputs={"expected_norm": "paris", "actual_norm": "paris"},
+        )
+        assert step.step_number == 1
+        assert step.operation == "text_normalization"
+        assert step.description == "Normalizing input text for comparison"
+        assert step.inputs["expected"] == "Paris"
+        assert step.outputs["expected_norm"] == "paris"
+        assert step.metadata == {}
+
+    def test_reasoning_step_with_metadata(self) -> None:
+        """Test ReasoningStep with optional metadata."""
+        step = ReasoningStep(
+            step_number=2,
+            operation="similarity_calculation",
+            description="Computing cosine similarity",
+            inputs={"embedding1": [0.1, 0.2], "embedding2": [0.3, 0.4]},
+            outputs={"similarity": 0.92},
+            metadata={"model": "all-MiniLM-L6-v2", "dimension": 384},
+        )
+        assert step.metadata["model"] == "all-MiniLM-L6-v2"
+        assert step.metadata["dimension"] == 384
+
+    def test_reasoning_step_inputs_can_be_any_type(self) -> None:
+        """Test that inputs field can contain various types."""
+        step = ReasoningStep(
+            step_number=1,
+            operation="test",
+            description="Test with various input types",
+            inputs={
+                "string": "test",
+                "number": 42,
+                "list": [1, 2, 3],
+                "dict": {"nested": "value"},
+                "bool": True,
+            },
+            outputs={},
+        )
+        assert step.inputs["string"] == "test"
+        assert step.inputs["number"] == 42
+        assert step.inputs["list"] == [1, 2, 3]
+        assert step.inputs["dict"]["nested"] == "value"
+        assert step.inputs["bool"] is True
+
+    def test_reasoning_step_outputs_can_be_any_type(self) -> None:
+        """Test that outputs field can contain various types."""
+        step = ReasoningStep(
+            step_number=1,
+            operation="test",
+            description="Test with various output types",
+            inputs={},
+            outputs={
+                "result": "success",
+                "score": 0.95,
+                "details": {"passed": True, "errors": []},
+            },
+        )
+        assert step.outputs["result"] == "success"
+        assert step.outputs["score"] == 0.95
+        assert step.outputs["details"]["passed"] is True
+
+    def test_reasoning_step_metadata_optional(self) -> None:
+        """Test that metadata defaults to empty dict."""
+        step = ReasoningStep(
+            step_number=1,
+            operation="test",
+            description="Test step",
+            inputs={},
+            outputs={},
+        )
+        assert step.metadata == {}
+        assert isinstance(step.metadata, dict)
+
+
+class TestMetricResultWithReasoning:
+    """Tests for MetricResult with new reasoning fields."""
+
+    def test_metric_result_with_reasoning_summary(self) -> None:
+        """Test MetricResult with reasoning summary string."""
+        mr = MetricResult(
+            name="semantic_similarity",
+            score=0.92,
+            passed=True,
+            reasoning="High semantic similarity (92%) exceeds threshold (80%)",
+        )
+        assert mr.reasoning == "High semantic similarity (92%) exceeds threshold (80%)"
+        assert mr.reasoning_steps is None
+        assert mr.reasoning_type is None
+
+    def test_metric_result_with_reasoning_steps(self) -> None:
+        """Test MetricResult with structured reasoning steps."""
+        steps = [
+            ReasoningStep(
+                step_number=1,
+                operation="normalize",
+                description="Normalize text",
+                inputs={"text": "Paris"},
+                outputs={"normalized": "paris"},
+            ),
+            ReasoningStep(
+                step_number=2,
+                operation="compare",
+                description="Compare normalized texts",
+                inputs={"expected": "paris", "actual": "paris"},
+                outputs={"match": True, "score": 1.0},
+            ),
+        ]
+        mr = MetricResult(
+            name="exact_match",
+            score=1.0,
+            passed=True,
+            reasoning_steps=steps,
+        )
+        assert mr.reasoning_steps is not None
+        assert len(mr.reasoning_steps) == 2
+        assert mr.reasoning_steps[0].operation == "normalize"
+        assert mr.reasoning_steps[1].operation == "compare"
+        assert mr.reasoning_steps[1].outputs["match"] is True
+
+    def test_metric_result_with_reasoning_type(self) -> None:
+        """Test MetricResult with reasoning type indicator."""
+        mr_logic = MetricResult(
+            name="exact_match",
+            score=1.0,
+            passed=True,
+            reasoning="Exact match after normalization",
+            reasoning_type="logic",
+        )
+        assert mr_logic.reasoning_type == "logic"
+
+        mr_llm = MetricResult(
+            name="llm_judge",
+            score=0.85,
+            passed=True,
+            reasoning="The output correctly answers the question...",
+            reasoning_type="llm",
+        )
+        assert mr_llm.reasoning_type == "llm"
+
+        mr_hybrid = MetricResult(
+            name="semantic_similarity",
+            score=0.9,
+            passed=True,
+            reasoning="Similarity score calculated, then explained by LLM",
+            reasoning_type="hybrid",
+        )
+        assert mr_hybrid.reasoning_type == "hybrid"
+
+    def test_metric_result_with_all_reasoning_fields(self) -> None:
+        """Test MetricResult with all reasoning fields populated."""
+        steps = [
+            ReasoningStep(
+                step_number=1,
+                operation="embedding",
+                description="Generate embeddings",
+                inputs={"text": "Paris"},
+                outputs={"embedding": [0.1, 0.2, 0.3]},
+            )
+        ]
+        mr = MetricResult(
+            name="semantic_similarity",
+            score=0.92,
+            passed=True,
+            metadata={"threshold": 0.8, "model": "all-MiniLM-L6-v2"},
+            reasoning="High similarity score exceeds threshold",
+            reasoning_steps=steps,
+            reasoning_type="logic",
+        )
+        assert mr.reasoning is not None
+        assert mr.reasoning_steps is not None
+        assert mr.reasoning_type == "logic"
+        assert len(mr.reasoning_steps) == 1
+        assert mr.metadata["threshold"] == 0.8
+
+    def test_metric_result_reasoning_fields_optional(self) -> None:
+        """Test that reasoning fields are optional and default to None."""
+        mr = MetricResult(
+            name="test",
+            score=0.5,
+            passed=True,
+        )
+        assert mr.reasoning is None
+        assert mr.reasoning_steps is None
+        assert mr.reasoning_type is None
+
+    def test_metric_result_backward_compatible(self) -> None:
+        """Test that existing code without reasoning fields still works."""
+        mr = MetricResult(
+            name="exact_match",
+            score=1.0,
+            passed=True,
+            metadata={"case_sensitive": False},
+        )
+        assert mr.name == "exact_match"
+        assert mr.score == 1.0
+        assert mr.passed is True
+        assert mr.metadata["case_sensitive"] is False
+        assert mr.reasoning is None
+
+    def test_metric_result_reasoning_type_validation(self) -> None:
+        """Test that reasoning_type only accepts valid literals."""
+        valid_types: list[str] = ["logic", "llm", "hybrid"]
+        for rtype in valid_types:
+            mr = MetricResult(
+                name="test",
+                score=0.8,
+                passed=True,
+                reasoning_type=rtype,  # type: ignore[arg-type]
+            )
+            assert mr.reasoning_type == rtype
+
+        with pytest.raises(ValidationError):
+            MetricResult(
+                name="test",
+                score=0.8,
+                passed=True,
+                reasoning_type="invalid_type",  # type: ignore[arg-type]
+            )
 
 
 class TestTestResult:
