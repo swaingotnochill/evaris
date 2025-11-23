@@ -274,7 +274,7 @@ class AnswerMatchMetric(BaseMetric):
                 },
             )
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score agent output using answer matching.
 
         Since answer matching is CPU-bound (parsing), this runs the sync version
@@ -285,7 +285,8 @@ class AnswerMatchMetric(BaseMetric):
         - O.h.2: Format requirement minimizes guessing success
 
         Args:
-            test_case: Test case with expected answer and actual_output
+            test_case: Test case with expected answer
+            actual_output: The actual output to compare
 
         Returns:
             MetricResult with score and metadata
@@ -293,8 +294,8 @@ class AnswerMatchMetric(BaseMetric):
         Raises:
             ValueError: If expected output or actual_output is missing
         """
-        if test_case.actual_output is None:
-            raise ValueError("Answer matching metric requires 'actual_output' in test case")
+        if actual_output is None:
+            raise ValueError("Answer matching metric requires 'actual_output'")
 
         # Run CPU-bound parsing in thread pool
-        return await asyncio.to_thread(self.score, test_case, test_case.actual_output)
+        return await asyncio.to_thread(self.score, test_case, actual_output)

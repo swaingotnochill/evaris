@@ -517,7 +517,7 @@ if __name__ == "__main__":
         except Exception as e:
             return False, f"Fuzz test execution failed: {str(e)}", metrics
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score generated code using fuzz testing.
 
         This async version uses asyncio.create_subprocess_exec for running
@@ -530,16 +530,17 @@ if __name__ == "__main__":
         - O.e.3: Tests with inputs the code is sensitive to
 
         Args:
-            test_case: Test case with function information and actual_output
+            test_case: Test case with function information
+            actual_output: The generated code to test
 
         Returns:
             MetricResult with fuzz test results and metrics
 
         Raises:
-            ValueError: If test case doesn't contain function information or actual_output
+            ValueError: If test case doesn't contain function information or actual_output is None
         """
-        if test_case.actual_output is None:
-            raise ValueError("Fuzz test metric requires 'actual_output' in test case")
+        if actual_output is None:
+            raise ValueError("Fuzz test metric requires 'actual_output'")
 
         if test_case.expected is None:
             raise ValueError("Fuzz test metric requires 'expected' value with function info")
@@ -568,7 +569,7 @@ if __name__ == "__main__":
 
                 # Create fuzz test files (I/O-bound, but fast)
                 code_file, test_file = self._create_fuzz_test_file(
-                    str(test_case.actual_output), function_name, fuzz_inputs, temp_path
+                    str(actual_output), function_name, fuzz_inputs, temp_path
                 )
 
                 # Run fuzz tests asynchronously

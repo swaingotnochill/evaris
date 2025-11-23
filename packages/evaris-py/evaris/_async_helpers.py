@@ -125,7 +125,7 @@ async def _run_metric_async(
             metric_result: MetricResult
             if hasattr(metric, "a_measure"):
                 debug.log_intermediate(metric_name, "Using async a_measure()")
-                metric_result = await metric.a_measure(test_case)
+                metric_result = await metric.a_measure(test_case, actual_output)
             else:
                 # Fallback to sync metric in thread pool
                 debug.log_intermediate(metric_name, "Using sync score() in thread pool")
@@ -177,15 +177,13 @@ async def _run_single_test_async(
         start_time = time.perf_counter()
 
         try:
+
             if test_case.actual_output is not None:
+                # Use pre-computed output
                 actual_output = test_case.actual_output
-                debug.log_intermediate("test", "Using existing actual_output")
-                # Check if latency was already measured during golden->testcase conversion
-                if "_generated_latency_ms" in test_case.metadata:
-                    latency_ms = test_case.metadata["_generated_latency_ms"]
-                else:
-                    latency_ms = (time.perf_counter() - start_time) * 1000
+                latency_ms = test_case.metadata.get("latency_ms", 0.0)
             else:
+                # Execute agent
                 actual_output = await _execute_agent_async(task, test_case.input)
                 latency_ms = (time.perf_counter() - start_time) * 1000
 

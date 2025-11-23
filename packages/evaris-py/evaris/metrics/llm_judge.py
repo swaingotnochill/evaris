@@ -170,6 +170,19 @@ class LLMJudgeMetric(BaseMetric):
             # Gemini uses the same client for both sync and async
             self._async_client = self._client
 
+    def _validate_inputs(self, test_case: TestCase, actual_output: Any) -> None:
+        """Validate inputs before evaluation.
+
+        Args:
+            test_case: Test case
+            actual_output: Agent's output
+
+        Raises:
+            ValueError: If inputs are invalid
+        """
+        if test_case.expected is None:
+            raise ValueError("LLM judge metric requires 'expected' value in test case")
+
     def _get_default_prompt(self, test_case: TestCase, actual_output: Any) -> str:
         """Get default judge prompt.
 
@@ -582,8 +595,7 @@ Your response:"""
         tracer = get_tracer()
         debug = get_debug_logger()
 
-        if test_case.expected is None:
-            raise ValueError("LLM judge metric requires 'expected' value in test case")
+        self._validate_inputs(test_case, actual_output)
 
         with tracer.start_span("llm_judge_score") as span:
             metadata: dict[str, Any] = {
@@ -678,7 +690,7 @@ Your response:"""
                     },
                 )
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Score agent output using LLM judge asynchronously.
 
         This is the async version of score() that uses async LLM clients and
@@ -689,24 +701,19 @@ Your response:"""
         - O.c.2: Structured prompt resists adversarial inputs
 
         Args:
-            test_case: Test case with expected output and actual_output
+            test_case: Test case with expected output
+            actual_output: Agent's actual output
 
         Returns:
             MetricResult with score and metadata
 
         Raises:
-            ValueError: If expected output or actual_output is missing
+            ValueError: If expected output is missing
         """
         tracer = get_tracer()
         debug = get_debug_logger()
 
-        if test_case.expected is None:
-            raise ValueError("LLM judge metric requires 'expected' value in test case")
-
-        if test_case.actual_output is None:
-            raise ValueError("LLM judge metric requires 'actual_output' in test case")
-
-        actual_output = test_case.actual_output
+        self._validate_inputs(test_case, actual_output)
 
         with tracer.start_span("llm_judge_a_measure") as span:
             metadata: dict[str, Any] = {

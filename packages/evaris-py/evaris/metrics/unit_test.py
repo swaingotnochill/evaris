@@ -443,7 +443,7 @@ from generated_code import *
 
         return metrics
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score generated code using unit tests.
 
         This async version uses asyncio.create_subprocess_exec for running
@@ -455,16 +455,17 @@ from generated_code import *
         - O.d.2: Measures code quality with coverage and complexity
 
         Args:
-            test_case: Test case with test definitions and actual_output
+            test_case: Test case with test definitions
+            actual_output: The generated code to test
 
         Returns:
             MetricResult with test results and metrics
 
         Raises:
-            ValueError: If test case doesn't contain tests or actual_output
+            ValueError: If test case doesn't contain tests or actual_output is None
         """
-        if test_case.actual_output is None:
-            raise ValueError("Unit test metric requires 'actual_output' in test case")
+        if actual_output is None:
+            raise ValueError("Unit test metric requires 'actual_output'")
 
         if test_case.expected is None:
             raise ValueError("Unit test metric requires 'expected' value with tests")
@@ -491,9 +492,7 @@ from generated_code import *
                 temp_path = Path(temp_dir)
 
                 # Create test files
-                code_file, test_file = self._create_test_file(
-                    str(test_case.actual_output), tests, temp_path
-                )
+                code_file, test_file = self._create_test_file(str(actual_output), tests, temp_path)
 
                 # Install additional dependencies if needed (run in parallel if multiple)
                 if self.config.additional_deps:

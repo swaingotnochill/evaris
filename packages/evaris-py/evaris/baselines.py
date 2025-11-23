@@ -318,7 +318,7 @@ class BaselineManager:
                         all_scores.append(result.score)
                     # Fallback to measure() if score() not available
                     elif hasattr(metric, "measure"):
-                        result = metric.measure(baseline_test_case)
+                        result = metric.measure(baseline_test_case, output)
                         all_scores.append(result.score)
                     else:
                         # Metric doesn't have expected interface
@@ -368,10 +368,8 @@ class BaselineManager:
         if absolute_improvement > 0:
             if is_meaningful:
                 interpretation = (
-                    f"Agent significantly outperforms {
-                        baseline_name} baseline "
-                    f"(+{absolute_improvement:.2%} absolute, "
-                    f"+{relative_improvement:.1%} relative)"
+                    f"Agent significantly outperforms {baseline_name} baseline "
+                    f"(+{absolute_improvement:.2%})"
                 )
             else:
                 interpretation = (
@@ -380,13 +378,10 @@ class BaselineManager:
                 )
         elif absolute_improvement < 0:
             interpretation = (
-                f"Agent underperforms {
-                    baseline_name} baseline "
-                f"({absolute_improvement:.2%})"
+                f"Agent underperforms {baseline_name} baseline " f"({absolute_improvement:.2%})"
             )
         else:
-            interpretation = f"Agent performs equally to {
-                baseline_name} baseline"
+            interpretation = f"Agent performs equally to {baseline_name} baseline"
 
         return BaselineComparison(
             baseline_name=baseline_name,
@@ -508,11 +503,9 @@ class BaselineManager:
         lines.extend(
             [
                 "",
-                f"Best Baseline: {
-                    report.best_baseline} ({report.best_baseline_score:.4f})",
+                f"Best Baseline: {report.best_baseline} ({report.best_baseline_score:.4f})",
                 f"Improvement over Best: {report.improvement_over_best:+.4f}",
-                f"Passes All Baselines: {
-                    'Yes' if report.passes_all_baselines else 'No'}",
+                f"Passes All Baselines: {'Yes' if report.passes_all_baselines else 'No'}",
             ]
         )
 

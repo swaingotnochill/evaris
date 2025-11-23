@@ -20,7 +20,7 @@ class TestExactMatchAsync:
         metric = ExactMatchMetric()
         tc = TestCase(input="test", expected="output", actual_output="output")
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert isinstance(result, MetricResult)
         assert result.name == "exact_match"
@@ -33,7 +33,7 @@ class TestExactMatchAsync:
         metric = ExactMatchMetric()
         tc = TestCase(input="test", expected="expected", actual_output="actual")
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -44,7 +44,7 @@ class TestExactMatchAsync:
         metric = ExactMatchMetric(case_sensitive=False)
         tc = TestCase(input="test", expected="Hello", actual_output="hello")
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -55,19 +55,22 @@ class TestExactMatchAsync:
         metric = ExactMatchMetric(strip_whitespace=True)
         tc = TestCase(input="test", expected="hello", actual_output="  hello  ")
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 1.0
         assert result.passed is True
 
     @pytest.mark.asyncio
     async def test_a_measure_none_actual_output(self) -> None:
-        """Test that None actual_output raises error."""
+        """Test that None actual_output works (comparing None to expected)."""
         metric = ExactMatchMetric()
         tc = TestCase(input="test", expected="output", actual_output=None)
 
-        with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
+
+        # None won't match "output", so score should be 0
+        assert result.score == 0.0
+        assert result.passed is False
 
 
 class TestAnswerMatchAsync:
@@ -83,7 +86,7 @@ class TestAnswerMatchAsync:
             actual_output="Let me think... Answer: 4",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "answer_match"
         assert result.score == 1.0
@@ -99,7 +102,7 @@ class TestAnswerMatchAsync:
             actual_output="Answer: 5",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -114,7 +117,7 @@ class TestAnswerMatchAsync:
             actual_output="The result is 4",  # No "Answer:" delimiter
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -131,7 +134,7 @@ class TestAnswerMatchAsync:
             actual_output="Result: 15",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -143,7 +146,7 @@ class TestAnswerMatchAsync:
         tc = TestCase(input="test", expected="answer", actual_output=None)
 
         with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, None)
 
 
 class TestStateMatchAsync:
@@ -159,7 +162,7 @@ class TestStateMatchAsync:
             actual_output={"a": 1, "b": 2},
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "state_match"
         assert result.score == 1.0
@@ -175,7 +178,7 @@ class TestStateMatchAsync:
             actual_output={"a": 1, "b": 3},
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.passed is False
         assert "differences" in result.metadata
@@ -191,7 +194,7 @@ class TestStateMatchAsync:
             actual_output={"a": 1, "b": 2},  # Extra key is OK in subset mode
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 1.0
         assert result.passed is True
@@ -207,7 +210,7 @@ class TestStateMatchAsync:
             actual_output={"a": 1, "unexpected": "value"},
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.passed is False
         assert "side effect" in str(result.metadata.get("differences", []))
@@ -219,7 +222,7 @@ class TestStateMatchAsync:
         tc = TestCase(input="test", expected={"state": {"a": 1}}, actual_output=None)
 
         with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, None)
 
 
 class TestSemanticSimilarityAsync:
@@ -235,7 +238,7 @@ class TestSemanticSimilarityAsync:
             actual_output="Paris",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "semantic_similarity"
         assert result.score > 0.9  # Should be very high for identical text
@@ -251,7 +254,7 @@ class TestSemanticSimilarityAsync:
             actual_output="The capital is Paris",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "semantic_similarity"
         assert result.score > 0.7  # Should have high similarity
@@ -267,7 +270,7 @@ class TestSemanticSimilarityAsync:
             actual_output="London",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score < 0.8  # Should have lower similarity
         assert "similarity" in result.metadata
@@ -283,7 +286,7 @@ class TestSemanticSimilarityAsync:
             actual_output="hello world",  # Similar but not identical
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         # May pass or fail depending on similarity, but should run without error
         assert result.name == "semantic_similarity"
@@ -291,12 +294,15 @@ class TestSemanticSimilarityAsync:
 
     @pytest.mark.asyncio
     async def test_a_measure_none_actual_output(self) -> None:
-        """Test that None actual_output raises error."""
+        """Test that None actual_output is converted to empty string."""
         metric = SemanticSimilarityMetric()
         tc = TestCase(input="test", expected="output", actual_output=None)
 
-        with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
+
+        # None converted to string will have low similarity with "output"
+        assert result.score >= 0  # Should return a valid score
+        assert result.name == "semantic_similarity"
 
 
 class TestUnitTestAsync:
@@ -312,7 +318,7 @@ class TestUnitTestAsync:
             actual_output="def add(a, b):\n    return a + b",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "unit_test"
         assert result.score == 1.0
@@ -329,7 +335,7 @@ class TestUnitTestAsync:
             actual_output="def add(a, b):\n    return a - b",  # Wrong implementation
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.score == 0.0
         assert result.passed is False
@@ -346,7 +352,7 @@ class TestUnitTestAsync:
         )
 
         with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, None)
 
     @pytest.mark.asyncio
     async def test_a_measure_missing_tests(self) -> None:
@@ -359,7 +365,7 @@ class TestUnitTestAsync:
         )
 
         with pytest.raises(ValueError, match="No tests"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, tc.actual_output)
 
 
 class TestFuzzTestAsync:
@@ -387,7 +393,7 @@ class TestFuzzTestAsync:
 """,
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "fuzz_test"
         # Should pass most tests due to error handling
@@ -409,7 +415,7 @@ class TestFuzzTestAsync:
             actual_output="def divide(a, b):\n    return a / b",  # No error handling
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "fuzz_test"
         # Should fail some tests due to division by zero
@@ -426,7 +432,7 @@ class TestFuzzTestAsync:
         )
 
         with pytest.raises(ValueError, match="actual_output"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, None)
 
     @pytest.mark.asyncio
     async def test_a_measure_missing_function_name(self) -> None:
@@ -439,4 +445,4 @@ class TestFuzzTestAsync:
         )
 
         with pytest.raises(ValueError, match="function_name"):
-            await metric.a_measure(tc)
+            await metric.a_measure(tc, tc.actual_output)

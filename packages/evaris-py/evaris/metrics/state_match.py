@@ -371,7 +371,7 @@ class StateMatchMetric(BaseMetric):
                 },
             )
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score state changes using state matching.
 
         Since state matching is CPU-bound (dict comparison), this runs the sync version
@@ -383,7 +383,8 @@ class StateMatchMetric(BaseMetric):
         - O.g.3: Handles numeric tolerance
 
         Args:
-            test_case: Test case with expected state and actual_output containing state
+            test_case: Test case with expected state
+            actual_output: The actual state to compare
 
         Returns:
             MetricResult with score and metadata
@@ -391,8 +392,8 @@ class StateMatchMetric(BaseMetric):
         Raises:
             ValueError: If expected output or actual_output is missing
         """
-        if test_case.actual_output is None:
-            raise ValueError("State matching metric requires 'actual_output' in test case")
+        if actual_output is None:
+            raise ValueError("State match metric requires 'actual_output'")
 
         # Run CPU-bound state comparison in thread pool
-        return await asyncio.to_thread(self.score, test_case, test_case.actual_output)
+        return await asyncio.to_thread(self.score, test_case, actual_output)

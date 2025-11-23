@@ -552,6 +552,7 @@ class TestTestCaseFromGolden:
 
         # Dict output
         tc2 = TestCase.from_golden(golden, actual_output={"result": "success"})
+        assert tc2.actual_output is not None
         assert tc2.actual_output["result"] == "success"
 
         # List output
@@ -570,17 +571,14 @@ class TestTestCaseWithActualOutput:
         assert tc.actual_output == "4"
 
     def test_actual_output_required_for_direct_creation(self) -> None:
-        """Test that actual_output is required when creating TestCase directly."""
+        """Test that actual_output is optional when creating TestCase directly."""
         # This should work - actual_output provided
         tc1 = TestCase(input="test", actual_output="output")
         assert tc1.actual_output == "output"
 
-        # This should raise ValidationError - missing actual_output
-        with pytest.raises(ValidationError) as exc_info:
-            TestCase(input="test")
-
-        # Check that the error mentions actual_output
-        assert "actual_output" in str(exc_info.value).lower()
+        # This should also work - actual_output omitted (it's optional now)
+        tc2 = TestCase(input="test")
+        assert tc2.actual_output is None
 
     def test_all_three_values_present(self) -> None:
         """Test TestCase with input, expected, and actual_output."""

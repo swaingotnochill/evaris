@@ -28,7 +28,7 @@ class TestNormalizeData:
         assert result.metadata == {"key": "value"}
 
     def test_normalize_dict_without_actual_output_to_golden(self) -> None:
-        """Test normalizing dict without actual_output creates Golden."""
+        """Test normalizing dict without actual_output creates TestCase."""
         data = {
             "input": "test input",
             "expected": "test output",
@@ -37,20 +37,22 @@ class TestNormalizeData:
 
         result = _normalize_data(data)
 
-        assert isinstance(result, Golden)
+        assert isinstance(result, TestCase)
         assert result.input == "test input"
         assert result.expected == "test output"
+        assert result.actual_output is None
         assert result.metadata == {"key": "value"}
 
     def test_normalize_golden_object_passthrough(self) -> None:
-        """Test that Golden objects pass through unchanged."""
+        """Test that Golden objects are converted to TestCase."""
         golden = Golden(input="test", expected="output", metadata={"x": 1})
 
         result = _normalize_data(golden)
 
-        assert result is golden
+        assert isinstance(result, TestCase)
         assert result.input == "test"
         assert result.expected == "output"
+        assert result.actual_output is None
         assert result.metadata == {"x": 1}
 
     def test_normalize_testcase_object_passthrough(self) -> None:
@@ -73,8 +75,9 @@ class TestNormalizeData:
 
         result = _normalize_data(data)
 
-        assert isinstance(result, Golden)
+        assert isinstance(result, TestCase)
         assert result.expected is None
+        assert result.actual_output is None
 
     def test_normalize_handles_missing_metadata(self) -> None:
         """Test normalization when metadata field is missing."""
@@ -82,8 +85,9 @@ class TestNormalizeData:
 
         result = _normalize_data(data)
 
-        assert isinstance(result, Golden)
+        assert isinstance(result, TestCase)
         assert result.metadata == {}
+        assert result.actual_output is None
 
 
 class TestResolveMetrics:

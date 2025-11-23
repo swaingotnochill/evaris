@@ -20,7 +20,7 @@ class SemanticSimilarityConfig(BaseModel):
         default="sentence-transformers/all-MiniLM-L6-v2",
         description="Sentence transformer model",
     )
-    threshold: float = Field(default=0.8, description="Similarity threshold for passing (0.0-1.0)")
+    threshold: float = Field(default=0.6, description="Similarity threshold for passing (0.0-1.0)")
     normalize: bool = Field(default=True, description="Normalize text before comparison")
     case_sensitive: bool = Field(default=False, description="Case sensitive comparison")
 
@@ -118,7 +118,9 @@ class SemanticSimilarityMetric(BaseMetric):
 
         # Convert to float and ensure [0, 1] range
         similarity = float(similarity)
-        similarity = (similarity + 1.0) / 2.0  # Map from [-1, 1] to [0, 1]
+        # similarity = (similarity + 1.0) / 2.0  # REMOVED: Do not map from [-1, 1] to [0, 1]
+        # We want raw cosine similarity. Negative values are clamped to 0.
+        similarity = max(0.0, similarity)  # Clamp negative values to 0
 
         return similarity
 
@@ -241,7 +243,7 @@ class SemanticSimilarityMetric(BaseMetric):
                     },
                 )
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score semantic similarity.
 
         Since semantic similarity uses ML model inference (sentence transformers),
@@ -253,16 +255,14 @@ class SemanticSimilarityMetric(BaseMetric):
         - O.a.2: Handles redundant words through normalization
 
         Args:
-            test_case: Test case with expected output and actual_output
+            test_case: Test case with expected output
+            actual_output: Agent's actual output
 
         Returns:
             MetricResult with similarity score and metadata
 
         Raises:
-            ValueError: If expected output or actual_output is missing
+            ValueError: If expected output is missing
         """
-        if test_case.actual_output is None:
-            raise ValueError("Semantic similarity metric requires 'actual_output' in test case")
-
         # Run ML inference (embedding generation) in thread pool
-        return await asyncio.to_thread(self.score, test_case, test_case.actual_output)
+        return await asyncio.to_thread(self.score, test_case, actual_output)

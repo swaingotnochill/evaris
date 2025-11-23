@@ -211,23 +211,21 @@ class ExactMatchMetric(BaseMetric):
             reasoning_type="logic",
         )
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously score the actual output against the expected output.
 
         Since exact matching is CPU-bound and fast, this runs the sync version
         in a thread pool to avoid blocking the event loop.
 
         Args:
-            test_case: The test case containing expected and actual_output
+            test_case: The test case containing the expected output
+            actual_output: The actual output from the agent
 
         Returns:
             MetricResult with score 1.0 if exact match, 0.0 otherwise
 
         Raises:
-            ValueError: If test_case.expected or actual_output is None
+            ValueError: If test_case.expected is None
         """
-        if test_case.actual_output is None:
-            raise ValueError("ExactMatchMetric requires test case to have 'actual_output'")
-
         # For simple CPU-bound operations, run in thread pool
-        return await asyncio.to_thread(self.score, test_case, test_case.actual_output)
+        return await asyncio.to_thread(self.score, test_case, actual_output)

@@ -41,11 +41,12 @@ class LatencyMetric(BaseMetric):
     This metric always passes and simply records the execution time.
     """
 
-    async def a_measure(self, test_case: TestCase) -> MetricResult:
+    async def a_measure(self, test_case: TestCase, actual_output: Any) -> MetricResult:
         """Asynchronously measure latency.
 
         Args:
             test_case: The test case containing latency in metadata
+            actual_output: The actual output (unused for latency metric)
 
         Returns:
             MetricResult with the latency information
@@ -83,31 +84,31 @@ class LatencyMetric(BaseMetric):
         )
 
 
-def _normalize_data(data: Union[dict[str, Any], Golden, TestCase]) -> Union[Golden, TestCase]:
-    """Convert input data to Golden or TestCase object.
+def _normalize_data(data: Union[dict[str, Any], Golden, TestCase]) -> TestCase:
+    """Convert input data to TestCase object.
 
     Args:
         data: Dict, Golden, or TestCase
 
     Returns:
-        Golden if data has no actual_output, TestCase if it does
+        TestCase object (converts Golden to TestCase if needed)
     """
-    if isinstance(data, (Golden, TestCase)):
+    if isinstance(data, TestCase):
         return data
 
-    # Check if this is a complete TestCase (has actual_output)
-    if "actual_output" in data:
+    if isinstance(data, Golden):
         return TestCase(
-            input=data.get("input"),
-            actual_output=data["actual_output"],
-            expected=data.get("expected"),
-            metadata=data.get("metadata", {}),
+            input=data.input,
+            expected=data.expected,
+            actual_output=None,
+            metadata=data.metadata,
         )
 
-    # Otherwise, treat as Golden (static test data)
-    return Golden(
+    # Dict input
+    return TestCase(
         input=data.get("input"),
         expected=data.get("expected"),
+        actual_output=data.get("actual_output"),
         metadata=data.get("metadata", {}),
     )
 
@@ -193,7 +194,10 @@ def _wrap_agent(
 def _run_single_test(
     task: AgentFunction,
     test_case: TestCase,
+    actual_output: Any,
     metrics: list[Any],
+    latency_ms: float = 0.0,
+    error: Optional[str] = None,
 ) -> TestResult:
     """Run a single test case and evaluate it.
 
@@ -209,34 +213,6 @@ def _run_single_test(
     debug = get_debug_logger()
 
     with tracer.start_span("test_case_execution"):
-        # Use existing actual_output if available, otherwise run the agent
-        error = None
-        output = test_case.actual_output  # Use the actual_output from TestCase
-
-        # Only run task if actual_output is None (not just empty string)
-        if output is None:
-            start_time = time.perf_counter()
-            with tracer.start_span("agent_execution"):
-                try:
-                    output = task(test_case.input)
-                    tracer.set_attribute("agent.success", True)
-                except Exception as e:
-                    error = str(e)
-                    output = ""
-                    tracer.set_attribute("agent.success", False)
-                    tracer.set_attribute("agent.error", str(e))
-                    tracer.record_exception(e)
-                    debug.log_error("agent_execution", e, input=test_case.input)
-            end_time = time.perf_counter()
-            latency_ms = (end_time - start_time) * 1000  # Convert to milliseconds
-        else:
-            # Check if latency was already measured during golden->testcase conversion
-            if "_generated_latency_ms" in test_case.metadata:
-                latency_ms = test_case.metadata["_generated_latency_ms"]
-            else:
-                # Use existing output, set latency to 0 (agent already ran elsewhere)
-                latency_ms = 0.0
-
         tracer.set_attribute("latency_ms", round(latency_ms, 2))
 
         # Validate test case has expected value (unless using validation-free metrics)
@@ -265,9 +241,9 @@ def _run_single_test(
                     try:
                         # Latency metric needs the latency value
                         if isinstance(metric, LatencyMetric):
-                            result = metric.score(test_case, output, latency_ms)
+                            result = metric.score(test_case, actual_output, latency_ms)
                         else:
-                            result = metric.score(test_case, output)
+                            result = metric.score(test_case, actual_output)
 
                         # Record metric result in span
                         if metric_span:
@@ -304,7 +280,7 @@ def _run_single_test(
 
         return TestResult(
             test_case=test_case,
-            output=output,
+            output=actual_output,
             metrics=metric_results,
             latency_ms=latency_ms,
             error=error,
@@ -414,53 +390,10 @@ def evaluate_sync(
         tracer.set_attribute("eval.data_count", len(data))
         tracer.set_attribute("eval.metrics_count", len(metrics))
 
-        # Normalize data to Golden or TestCase objects
+        # Normalize data to TestCase objects
         with tracer.start_span("dataset_normalization"):
-            normalized_data = [_normalize_data(d) for d in data]
-
-            # Separate Goldens from TestCases
-            goldens: list[Golden] = [item for item in normalized_data if isinstance(item, Golden)]
-            test_cases: list[TestCase] = [
-                item for item in normalized_data if isinstance(item, TestCase)
-            ]
-
-            tracer.set_attribute("dataset.goldens_count", len(goldens))
+            test_cases = [_normalize_data(d) for d in data]
             tracer.set_attribute("dataset.test_cases_count", len(test_cases))
-
-            debug.log_intermediate(
-                "dataset_normalization",
-                "Dataset split",
-                goldens=len(goldens),
-                existing_test_cases=len(test_cases),
-            )
-
-        # Generate TestCases from Goldens by running the agent
-        if goldens:
-            with tracer.start_span("generate_test_cases") as gen_span:
-                for i, golden in enumerate(goldens):
-                    # Measure latency when generating test cases from goldens
-                    start_time = time.perf_counter()
-                    try:
-                        actual_output = task(golden.input)
-                        end_time = time.perf_counter()
-                        latency_ms = (end_time - start_time) * 1000
-                    except Exception as e:
-                        # If agent fails, set actual_output to None so _run_single_test
-                        # will try running it again and properly catch/record the error
-                        actual_output = None
-                        end_time = time.perf_counter()
-                        latency_ms = (end_time - start_time) * 1000
-                        tracer.record_exception(e)
-                        debug.log_error("generate_test_case", e, golden_index=i)
-
-                    test_case = TestCase.from_golden(golden, actual_output)
-                    # Copy metadata before modifying to avoid polluting Golden
-                    test_case.metadata = test_case.metadata.copy()
-                    test_case.metadata["_generated_latency_ms"] = latency_ms
-                    test_cases.append(test_case)
-
-                if gen_span:
-                    gen_span.set_attribute("generated_count", len(goldens))
 
         tracer.set_attribute("eval.total_test_cases", len(test_cases))
 
@@ -508,7 +441,30 @@ def evaluate_sync(
         results = []
         with tracer.start_span("test_execution") as test_exec_span:
             for i, test_case in enumerate(test_cases):
-                result = _run_single_test(task, test_case, metric_instances)
+                # Execute agent (or use pre-computed output)
+                start_time = time.perf_counter()
+                error = None
+
+                if test_case.actual_output is not None:
+                    # Use pre-computed output (offline evaluation)
+                    actual_output = test_case.actual_output
+                    # Latency is unknown for pre-computed outputs unless in metadata
+                    latency_ms = test_case.metadata.get("latency_ms", 0.0)
+                else:
+                    # Run agent
+                    try:
+                        actual_output = task(test_case.input)
+                    except Exception as e:
+                        error = str(e)
+                        actual_output = ""
+                        tracer.record_exception(e)
+
+                    end_time = time.perf_counter()
+                    latency_ms = (end_time - start_time) * 1000
+
+                result = _run_single_test(
+                    task, test_case, actual_output, metric_instances, latency_ms, error
+                )
                 results.append(result)
 
                 # Add progress event
@@ -684,74 +640,10 @@ async def evaluate_async(
         tracer.set_attribute("eval.metrics_count", len(metrics))
         tracer.set_attribute("eval.max_concurrency", max_concurrency)
 
-        # Normalize data to Golden or TestCase objects
+        # Normalize data to TestCase objects
         with tracer.start_span("dataset_normalization"):
-            normalized_data = [_normalize_data(d) for d in data]
-
-            # Separate Goldens from TestCases
-            goldens: list[Golden] = [item for item in normalized_data if isinstance(item, Golden)]
-            test_cases: list[TestCase] = [
-                item for item in normalized_data if isinstance(item, TestCase)
-            ]
-
-            tracer.set_attribute("dataset.goldens_count", len(goldens))
+            test_cases = [_normalize_data(d) for d in data]
             tracer.set_attribute("dataset.test_cases_count", len(test_cases))
-
-            debug.log_intermediate(
-                "dataset_normalization",
-                "Dataset split",
-                goldens=len(goldens),
-                existing_test_cases=len(test_cases),
-            )
-
-        # Generate TestCases from Goldens by running the agent
-        if goldens:
-            with tracer.start_span("generate_test_cases_async") as gen_span:
-                # Import async helpers
-                from evaris._async_helpers import _execute_agent_async
-
-                # Generate test cases in parallel with concurrency control
-                semaphore = asyncio.Semaphore(max_concurrency)
-
-                async def generate_one(golden: Golden, index: int) -> TestCase:
-                    async with semaphore:
-                        # Measure latency when generating test cases from goldens
-                        start_time = time.perf_counter()
-                        try:
-                            actual_output = await _execute_agent_async(task, golden.input)
-                            end_time = time.perf_counter()
-                            latency_ms = (end_time - start_time) * 1000
-                        except Exception as e:
-                            # If agent fails, set actual_output to None so _run_single_test
-                            # will try running it again and properly catch/record the error
-                            actual_output = None
-                            end_time = time.perf_counter()
-                            latency_ms = (end_time - start_time) * 1000
-                            tracer.record_exception(e)
-                            debug.log_error("generate_test_case", e, golden_index=index)
-
-                        test_case = TestCase.from_golden(golden, actual_output)
-                        # Copy metadata before modifying to avoid polluting Golden
-                        test_case.metadata = test_case.metadata.copy()
-                        test_case.metadata["_generated_latency_ms"] = latency_ms
-                        return test_case
-
-                # Generate all test cases in parallel
-                generated_cases = await asyncio.gather(
-                    *[generate_one(g, i) for i, g in enumerate(goldens)],
-                    return_exceptions=True,
-                )
-
-                # Filter out exceptions and add to test_cases
-                for case_result in generated_cases:
-                    if isinstance(case_result, Exception):
-                        # Log but continue - error already recorded
-                        debug.log_error("generate_test_cases", case_result)
-                    elif isinstance(case_result, TestCase):
-                        test_cases.append(case_result)
-
-                if gen_span:
-                    gen_span.set_attribute("generated_count", len(goldens))
 
         tracer.set_attribute("eval.total_test_cases", len(test_cases))
 

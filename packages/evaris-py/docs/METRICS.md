@@ -161,6 +161,79 @@ result = metric.score(tc, "Quantum computers use qubits that can be in superposi
 
 ---
 
+## RAG Metrics
+
+### Faithfulness
+
+**ABC Compliance**: O.c.1, O.c.2
+
+Measures if the generated answer is faithful to the retrieved context (detects hallucinations).
+
+```python
+from evaris.metrics.faithfulness import FaithfulnessMetric, FaithfulnessConfig
+
+config = FaithfulnessConfig(
+    provider="openai",
+    model="gpt-4",
+    context_key="context"  # Key in test_case.metadata
+)
+metric = FaithfulnessMetric(config)
+
+tc = TestCase(
+    input="What is the capital?",
+    expected="Paris",
+    metadata={"context": "Paris is the capital of France."}
+)
+result = metric.score(tc, "Paris is the capital.")
+# Score: 1.0 (Faithful)
+```
+
+**Configuration Options**:
+- Inherits from `LLMJudgeConfig`
+- `context_key`: Key in `test_case.metadata` containing context (default: "context")
+
+**When to use**:
+- RAG applications
+- To detect hallucinations
+- To ensure answers are grounded in context
+
+---
+
+### ContextRelevance
+
+**ABC Compliance**: O.c.1
+
+Measures if the retrieved context is relevant to the user's query.
+
+```python
+from evaris.metrics.context_relevance import ContextRelevanceMetric, ContextRelevanceConfig
+
+config = ContextRelevanceConfig(
+    provider="openai",
+    model="gpt-4",
+    context_key="context"
+)
+metric = ContextRelevanceMetric(config)
+
+tc = TestCase(
+    input="What is the capital of France?",
+    metadata={"context": "Paris is the capital of France."}
+)
+result = metric.score(tc, None)  # actual_output is ignored
+# Score: 1.0 (Relevant)
+```
+
+**Configuration Options**:
+- Inherits from `LLMJudgeConfig`
+- `context_key`: Key in `test_case.metadata` containing context (default: "context")
+
+**When to use**:
+- RAG applications
+- To evaluate retrieval quality
+- To detect noisy context
+
+---
+
 ## Structured Output Metrics
 
 ### AnswerMatch

@@ -547,7 +547,7 @@ class TestUnitTestAsync:
             actual_output="# Code",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "unit_test"
         # Should execute without error
@@ -564,7 +564,7 @@ class TestUnitTestAsync:
             actual_output="def simple():\n    return 1",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "unit_test"
         # Should run without error (complexity measurement is optional)
@@ -641,7 +641,7 @@ def complex_function(x):
             actual_output="# Simple code",
         )
 
-        result = await metric.a_measure(tc)
+        result = await metric.a_measure(tc, tc.actual_output)
 
         assert result.name == "unit_test"
         # Should install and run without major errors

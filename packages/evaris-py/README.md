@@ -369,6 +369,8 @@ See **[Metrics Guide](./docs/METRICS.md)** for comprehensive documentation.
 |--------|----------|----------------|
 | **SemanticSimilarity** | Natural language outputs | O.a.1, O.a.2 |
 | **LLMJudge** | Complex semantic evaluation | O.c.1, O.c.2 |
+| **Faithfulness** | RAG hallucination detection | O.c.1, O.c.2 |
+| **ContextRelevance** | RAG retrieval quality | O.c.1 |
 | **AnswerMatch** | Structured output parsing | O.h.1, O.h.2 |
 | **UnitTest** | Code generation | O.d.1, O.d.2 |
 | **FuzzTest** | Code robustness | O.e.1, O.e.2, O.e.3 |
