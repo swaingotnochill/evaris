@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 import time
+import warnings
 from typing import Any, Union
 
 from evaris.agent_interface import is_async_agent as is_async_agent_interface
@@ -145,6 +146,16 @@ async def _run_metric_async(
 
         except Exception as e:
             debug.log_error(metric_name, e, test_case=str(test_case))
+
+            # Warn user about metric failure (may indicate misconfiguration)
+            warnings.warn(
+                f"Metric '{metric_name}' failed with error: {e}. "
+                "This may indicate a misconfigured metric (e.g., missing API key). "
+                "Check the error details in the result metadata.",
+                UserWarning,
+                stacklevel=2,
+            )
+
             # Return failed metric result instead of raising
             return MetricResult(
                 name=metric_name,

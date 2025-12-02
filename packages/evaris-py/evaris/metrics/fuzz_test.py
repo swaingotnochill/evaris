@@ -99,7 +99,7 @@ class FuzzTestMetric(BaseMetric):
                     " ",
                     "a" * 10000,  # Large string
                     "\n\t\r",
-                    "unicode: 你好🎉",
+                    "unicode: 你好世界",
                     "special: <>&\"'",
                 ]
             )

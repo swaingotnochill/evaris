@@ -71,15 +71,14 @@ class TestCase(BaseModel):
             TestCase: A complete test case ready for evaluation
 
         Note:
-            Metadata is shared with Golden (not copied) for performance.
-            Code that modifies TestCase.metadata must create a copy first
-            to avoid polluting the original Golden's metadata.
+            Metadata is copied from Golden to prevent accidental mutation
+            of the original Golden's metadata.
         """
         return cls(
             input=golden.input,
             expected=golden.expected,
             actual_output=actual_output,
-            metadata=golden.metadata,  # Share dict for performance
+            metadata=golden.metadata.copy() if golden.metadata else {},
         )
 
 

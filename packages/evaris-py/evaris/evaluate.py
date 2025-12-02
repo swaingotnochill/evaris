@@ -52,7 +52,7 @@ class LatencyMetric(BaseMetric):
             MetricResult with the latency information
         """
         # Latency is stored in metadata during test execution
-        latency_ms = test_case.metadata.get("_generated_latency_ms", 0.0)
+        latency_ms = test_case.metadata.get("latency_ms", 0.0)
         return MetricResult(
             name="latency",
             score=1.0,  # Latency metric always "passes"
@@ -253,11 +253,20 @@ def _run_single_test(
 
                         return result
                     except Exception as e:
-                        # If metric evaluation fails, record it
+                        # If metric evaluation fails, record it and warn user
                         tracer.set_attribute("metric.error", str(e))
                         tracer.record_exception(e)
                         tracer.set_status("error", str(e))
                         debug.log_error(metric_name, e, test_case=str(test_case)[:100])
+
+                        # Warn user about metric failure (may indicate misconfiguration)
+                        warnings.warn(
+                            f"Metric '{metric_name}' failed with error: {e}. "
+                            "This may indicate a misconfigured metric (e.g., missing API key). "
+                            "Check the error details in the result metadata.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
 
                         return MetricResult(
                             name=metric_name,
@@ -1061,74 +1070,10 @@ async def evaluate_stream(
         tracer.set_attribute("eval.metrics_count", len(metrics))
         tracer.set_attribute("eval.max_concurrency", max_concurrency)
 
-        # Normalize data to Golden or TestCase objects
+        # Normalize data to TestCase objects
         with tracer.start_span("dataset_normalization"):
-            normalized_data = [_normalize_data(d) for d in data]
-
-            # Separate Goldens from TestCases
-            goldens: list[Golden] = [item for item in normalized_data if isinstance(item, Golden)]
-            test_cases: list[TestCase] = [
-                item for item in normalized_data if isinstance(item, TestCase)
-            ]
-
-            tracer.set_attribute("dataset.goldens_count", len(goldens))
+            test_cases = [_normalize_data(d) for d in data]
             tracer.set_attribute("dataset.test_cases_count", len(test_cases))
-
-            debug.log_intermediate(
-                "dataset_normalization",
-                "Dataset split",
-                goldens=len(goldens),
-                existing_test_cases=len(test_cases),
-            )
-
-        # Generate TestCases from Goldens by running the agent
-        if goldens:
-            with tracer.start_span("generate_test_cases_async") as gen_span:
-                # Import async helpers
-                from evaris._async_helpers import _execute_agent_async
-
-                # Generate test cases in parallel with concurrency control
-                semaphore = asyncio.Semaphore(max_concurrency)
-
-                async def generate_one(golden: Golden, index: int) -> TestCase:
-                    async with semaphore:
-                        # Measure latency when generating test cases from goldens
-                        start_time = time.perf_counter()
-                        try:
-                            actual_output = await _execute_agent_async(task, golden.input)
-                            end_time = time.perf_counter()
-                            latency_ms = (end_time - start_time) * 1000
-                        except Exception as e:
-                            # If agent fails, set actual_output to None so _run_single_test
-                            # will try running it again and properly catch/record the error
-                            actual_output = None
-                            end_time = time.perf_counter()
-                            latency_ms = (end_time - start_time) * 1000
-                            tracer.record_exception(e)
-                            debug.log_error("generate_test_case", e, golden_index=index)
-
-                        test_case = TestCase.from_golden(golden, actual_output)
-                        # Copy metadata before modifying to avoid polluting Golden
-                        test_case.metadata = test_case.metadata.copy()
-                        test_case.metadata["_generated_latency_ms"] = latency_ms
-                        return test_case
-
-                # Generate all test cases in parallel
-                generated_cases = await asyncio.gather(
-                    *[generate_one(g, i) for i, g in enumerate(goldens)],
-                    return_exceptions=True,
-                )
-
-                # Filter out exceptions and add to test_cases
-                for case_result in generated_cases:
-                    if isinstance(case_result, Exception):
-                        # Log but continue - error already recorded
-                        debug.log_error("generate_test_cases", case_result)
-                    elif isinstance(case_result, TestCase):
-                        test_cases.append(case_result)
-
-                if gen_span:
-                    gen_span.set_attribute("generated_count", len(goldens))
 
         tracer.set_attribute("eval.total_test_cases", len(test_cases))
 
