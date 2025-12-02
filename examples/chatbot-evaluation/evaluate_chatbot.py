@@ -11,11 +11,12 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from evaris import EvaluationDataset, evaluate
 from evaris.metrics.semantic_similarity import SemanticSimilarityConfig, SemanticSimilarityMetric
-from evaris.metrics.llm_judge import LLMJudgeConfig, LLMJudgeMetric
-from chatbot import chatbot
+from evaris.metrics.llm_judge import JudgeConfig, LLMJudgeMetric
+from chatbot import chatbot  # type: ignore[import-not-found]
 
 import dotenv
 dotenv.load_dotenv()
@@ -177,13 +178,13 @@ async def main(save_results: bool = True):
     try:
         print("[3/3] LLM Judge")
         # Use QWEN for the judge
-        judge_config = LLMJudgeConfig(
+        judge_config = JudgeConfig(
             provider="qwen",
             model="qwen-plus",
             enable_self_consistency=False,  # Disable for faster evaluation
             threshold=0.7
         )
-        judge_metric = LLMJudgeMetric(judge_config)
+        judge_metric = LLMJudgeMetric(config=judge_config)
 
         result_judge = evaluate(
             name="chatbot-llm-judge",
@@ -241,7 +242,7 @@ async def main(save_results: bool = True):
     if save_results:
         # Save final summary
         summary_file = outputs_dir / f"summary_qwen_{timestamp}.json"
-        summary_data = {
+        summary_data: dict[str, Any] = {
             "provider": "qwen",
             "timestamp": timestamp,
             "test_cases": len(dataset.test_cases),
@@ -254,13 +255,13 @@ async def main(save_results: bool = True):
             }
         }
         if 'result_semantic' in locals():
-            summary_data["metrics"]["semantic_similarity"] = {
+            summary_data["metrics"]["semantic_similarity"] = {  # type: ignore[index]
                 "accuracy": result_semantic.accuracy,
                 "passed": result_semantic.passed,
                 "failed": result_semantic.failed
             }
         if 'result_judge' in locals():
-            summary_data["metrics"]["llm_judge"] = {
+            summary_data["metrics"]["llm_judge"] = {  # type: ignore[index]
                 "accuracy": result_judge.accuracy,
                 "passed": result_judge.passed,
                 "failed": result_judge.failed
