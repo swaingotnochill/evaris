@@ -39,6 +39,26 @@ from evaris.types import (
 # Validation
 from evaris.validation import TestCaseValidator, ValidationConfig
 
+# Cloud Client
+from evaris.client import (
+    EvarisClient,
+    AssessmentResult,
+    AssessmentSummary,
+    Span,
+    TraceResult,
+    LogResult,
+    get_client,
+)
+
+# Retry Configuration
+from evaris.retry import (
+    RetryConfig,
+    RetryExhaustedError,
+    default_retry_config,
+    aggressive_retry_config,
+    no_retry_config,
+)
+
 __version__ = "0.0.1-dev-001"
 
 __all__ = [
@@ -80,4 +100,18 @@ __all__ = [
     "ABCComplianceReport",
     "ABCViolationError",
     "check_compliance",
+    # Cloud Client
+    "EvarisClient",
+    "AssessmentResult",
+    "AssessmentSummary",
+    "Span",
+    "TraceResult",
+    "LogResult",
+    "get_client",
+    # Retry Configuration
+    "RetryConfig",
+    "RetryExhaustedError",
+    "default_retry_config",
+    "aggressive_retry_config",
+    "no_retry_config",
 ]

@@ -1,0 +1,16 @@
+{
+  "name": "evaris-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evaris evaluation server - schema management",
+  "scripts": {
+    "postinstall": "cp node_modules/@evarisai/schema/prisma/schema.prisma prisma/schema.prisma && echo 'Schema copied from @evarisai/schema'",
+    "schema:sync": "cp node_modules/@evarisai/schema/prisma/schema.prisma prisma/schema.prisma",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@evarisai/schema": "1.0.0"
+  }
+}

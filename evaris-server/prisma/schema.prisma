@@ -1,0 +1,467 @@
+// Python generator for evaris-server
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ===========================================
+// MULTI-TENANT MODELS
+// ===========================================
+
+// Organization (Tenant) model
+model Organization {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  isPersonal Boolean  @default(false) // True for personal workspaces created on signup
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // If this is a personal org, link to the owning user (for cascade delete)
+  owner user? @relation("PersonalOrganization")
+
+  memberships Membership[]
+  projects    Project[]
+  datasets    Dataset[]
+  evals       Eval[]
+  traces      Trace[]
+  logs        Log[]
+  apiKeys     ApiKey[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+
+  @@map("organization")
+}
+
+// Membership - User-Organization relationship with roles
+model Membership {
+  id        String   @id @default(cuid())
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId         String
+  user           user         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@map("membership")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// ===========================================
+// API KEYS FOR PROGRAMMATIC ACCESS
+// ===========================================
+
+model ApiKey {
+  id          String       @id @default(cuid())
+  name        String
+  keyHash     String       @unique // SHA-256 hash of the actual key
+  keyPrefix   String       // First 8 chars for identification (e.g., "evaris_sk_abc12345...")
+  permissions ApiKeyScope  @default(READ_WRITE)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Belongs to organization (tenant)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Creator for audit purposes
+  createdById String?
+  createdBy   user?   @relation("ApiKeyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([keyHash])
+  @@index([keyPrefix])
+  @@map("api_key")
+}
+
+enum ApiKeyScope {
+  READ_ONLY
+  READ_WRITE
+  ADMIN
+}
+
+// ===========================================
+// TEAM INVITATIONS
+// ===========================================
+
+model Invitation {
+  id        String           @id @default(cuid())
+  email     String
+  role      Role             @default(MEMBER)
+  status    InvitationStatus @default(PENDING)
+  token     String           @unique // Unique token for accepting invitation
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Belongs to organization
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Inviter for audit purposes
+  invitedById String?
+  invitedBy   user?   @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([email, organizationId])
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+  @@map("invitation")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+// ===========================================
+// AUDIT LOGS
+// ===========================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String   // e.g., "project.created", "eval.deleted", "member.invited"
+  entityType String   // e.g., "project", "eval", "dataset", "member"
+  entityId   String?  // ID of the affected entity
+  metadata   Json     @default("{}") // Additional context (old values, new values, etc.)
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime @default(now())
+
+  // Belongs to organization (tenant)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Actor who performed the action
+  userId String?
+  user   user?   @relation("AuditLogActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([timestamp])
+  @@map("audit_log")
+}
+
+// ===========================================
+// BETTER AUTH MODELS
+// ===========================================
+
+// Better Auth - User model
+model user {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Personal organization - created on signup, deleted when user is deleted
+  // This is the user's default workspace that cannot be deleted independently
+  personalOrganizationId String?       @unique
+  personalOrganization   Organization? @relation("PersonalOrganization", fields: [personalOrganizationId], references: [id], onDelete: SetNull)
+
+  sessions          session[]
+  accounts          account[]
+  memberships       Membership[]
+  createdProjects   Project[]     @relation("ProjectCreator")
+  createdEvals      Eval[]        @relation("EvalCreator")
+  createdApiKeys    ApiKey[]      @relation("ApiKeyCreator")
+  sentInvitations   Invitation[]  @relation("InvitationSender")
+  auditLogs         AuditLog[]    @relation("AuditLogActor")
+
+  @@map("user")
+}
+
+// Better Auth - Session model
+model session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+// Better Auth - Account model (for OAuth providers)
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+// Better Auth - Verification model (for email verification, password reset, etc.)
+model verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ===========================================
+// APPLICATION MODELS
+// ===========================================
+
+// Projects for organizing evaluations
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Belongs to organization (tenant)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Creator for audit purposes
+  createdById String?
+  createdBy   user?    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  evals    Eval[]
+  datasets Dataset[]
+
+  @@index([organizationId])
+  @@index([createdById])
+}
+
+// Datasets for evaluation
+model Dataset {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  format      DatasetFormat @default(JSONL)
+  itemCount   Int           @default(0)
+  fileUrl     String?       // URL to the stored dataset file (e.g., S3, GCS)
+  fileSize    Int?          // Size in bytes
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Belongs to organization (tenant)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  evals Eval[]
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+enum DatasetFormat {
+  JSON
+  JSONL
+  CSV
+  PARQUET
+}
+
+// Evaluation runs
+model Eval {
+  id          String     @id @default(cuid())
+  name        String
+  status      EvalStatus @default(PENDING)
+  total       Int?       // Total test cases
+  passed      Int?       // Passed test cases
+  failed      Int?       // Failed test cases
+  accuracy    Float?     // Pass rate (0.0 - 1.0)
+  summary     Json?      // Detailed summary with per-metric stats
+  metadata    Json       @default("{}")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  completedAt DateTime?  // When evaluation finished
+
+  // Belongs to organization (tenant)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Creator for audit purposes
+  createdById String?
+  createdBy   user?    @relation("EvalCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Optional dataset - inline assessments via SDK don't require a stored dataset
+  datasetId String?
+  dataset   Dataset? @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  // Test results for this evaluation
+  testResults TestResult[]
+  traces      Trace[]
+  logs        Log[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([datasetId])
+  @@index([status])
+}
+
+// Individual test case results
+model TestResult {
+  id           String   @id @default(cuid())
+  input        String   // JSON-encoded input
+  expected     String?  // JSON-encoded expected output
+  actualOutput String   // JSON-encoded actual output
+  scores       Json     // Array of metric scores
+  passed       Boolean
+  latencyMs    Float?
+  error        String?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  evalId String
+  eval   Eval   @relation(fields: [evalId], references: [id], onDelete: Cascade)
+
+  @@index([evalId])
+}
+
+enum EvalStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+}
+
+// OpenTelemetry-compatible traces
+model Trace {
+  id           String      @id @default(cuid())
+  traceId      String      @unique
+  rootSpanName String
+  serviceName  String
+  status       TraceStatus @default(UNSET)
+  duration     Int // in milliseconds
+  spanCount    Int         @default(0)
+  startTime    DateTime
+  endTime      DateTime?
+  createdAt    DateTime    @default(now())
+
+  // Direct organization link for tenant isolation (required for traces without evalId)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  evalId String?
+  eval   Eval?   @relation(fields: [evalId], references: [id], onDelete: SetNull)
+
+  spans Span[]
+
+  @@index([organizationId])
+  @@index([evalId])
+  @@index([traceId])
+  @@index([startTime])
+}
+
+enum TraceStatus {
+  OK
+  ERROR
+  UNSET
+}
+
+// Individual spans within a trace
+model Span {
+  id            String      @id @default(cuid())
+  spanId        String
+  parentSpanId  String?
+  operationName String
+  serviceName   String
+  kind          SpanKind    @default(INTERNAL)
+  status        TraceStatus @default(UNSET)
+  startTime     Int // relative to trace start in ms
+  duration      Int // in milliseconds
+  attributes    Json        @default("{}")
+  events        Json        @default("[]")
+
+  traceId String
+  trace   Trace  @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  @@index([traceId])
+  @@index([spanId])
+}
+
+enum SpanKind {
+  INTERNAL
+  CLIENT
+  SERVER
+  PRODUCER
+  CONSUMER
+}
+
+// Structured logs
+model Log {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  level     LogLevel
+  source    String
+  agentId   String?
+  message   String
+  metadata  Json     @default("{}")
+
+  // Direct organization link for tenant isolation (required for logs without evalId)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  evalId String?
+  eval   Eval?   @relation(fields: [evalId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([evalId])
+  @@index([level])
+  @@index([source])
+  @@index([timestamp])
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}

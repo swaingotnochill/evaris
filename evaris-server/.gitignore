@@ -1,0 +1,11 @@
+# Node modules (for @evarisai/schema)
+node_modules/
+package-lock.json
+
+# Environment files
+.env
+.env.test
+.env.local
+
+# NPM auth
+.npmrc

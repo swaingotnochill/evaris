@@ -1,0 +1,83 @@
+# Docker Compose configuration for E2E testing
+#
+# Usage:
+#   # Start services
+#   docker-compose -f docker-compose.test.yml up -d
+#
+#   # Run E2E tests
+#   EVARIS_E2E_TESTS=1 pytest tests/e2e -v --e2e
+#
+#   # Stop services
+#   docker-compose -f docker-compose.test.yml down -v
+#
+# Services:
+#   - redis: Redis for caching/rate limiting
+#   - evaris-server: The FastAPI evaluation server
+#
+# Note: PostgreSQL is hosted on Supabase (not local Docker)
+
+services:
+  # ============================================================================
+  # Redis
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: evaris-test-redis
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evaris-test-network
+
+  # ============================================================================
+  # Evaris Server
+  # ============================================================================
+  evaris-server:
+    build:
+      context: ./evaris-server
+      dockerfile: Dockerfile
+      args:
+        - PERSONAL_NPM_TOKEN=${PERSONAL_NPM_TOKEN}
+    container_name: evaris-test-server
+    environment:
+      # Server config
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      ENVIRONMENT: "test"
+      DEBUG: "true"
+      LOG_LEVEL: "DEBUG"
+
+      # Database (Supabase - passed from host environment or .env)
+      DATABASE_URL: "${DATABASE_URL}"
+
+      # Redis
+      REDIS_URL: "redis://redis:6379/0"
+
+      # JWT for internal auth (matches test fixtures)
+      INTERNAL_JWT_SECRET: "test-secret-for-testing-only"
+      INTERNAL_JWT_ALGORITHM: "HS256"
+
+      # LLM Judge (use mock in tests or provide real keys)
+      JUDGE_MODEL: "openai/gpt-4o-mini"
+      JUDGE_PROVIDER: "openrouter"
+    ports:
+      - "8081:8080"  # Use different port to avoid conflicts
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - evaris-test-network
+
+networks:
+  evaris-test-network:
+    driver: bridge

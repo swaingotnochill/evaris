@@ -56,7 +56,12 @@ ui = [
     "rich>=13.0.0",
 ]
 
-# All optional metrics
+# Cloud client support (for sending to Evaris Cloud)
+cloud = [
+    "httpx>=0.25.0",
+]
+
+# All optional features
 all = [
     "openai>=1.0.0",
     "anthropic>=0.18.0",
@@ -68,6 +73,7 @@ all = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp>=1.20.0",
     "rich>=13.0.0",
+    "httpx>=0.25.0",
 ]
 
 # Development dependencies (includes all optional features for testing)
@@ -75,6 +81,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-asyncio>=0.21.0",
+    "respx>=0.20.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
@@ -89,6 +96,7 @@ dev = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp>=1.20.0",
     "rich>=13.0.0",
+    "httpx>=0.25.0",
 ]
 
 [project.urls]
@@ -120,6 +128,11 @@ addopts = [
     "-v"
 ]
 asyncio_mode = "auto"
+markers = [
+    "e2e: mark test as end-to-end (requires running services)",
+    "integration: mark test as integration test",
+    "unit: mark test as unit test",
+]
 
 [tool.black]
 line-length = 100
@@ -156,6 +169,8 @@ module = [
     "opentelemetry.*",
     "rich",
     "rich.*",
+    "httpx",
+    "httpx.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
