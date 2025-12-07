@@ -1,3 +1,8 @@
+NOTE: The development of the project has been shifted to a monorepo in a separate organization.
+https://github.com/evarisai/evaris
+
+Any new changes will be made in that repository itself.
+
 # Evaris
 
 > AI Agent Evaluation, Tracing, Profiling & Observability Platform
